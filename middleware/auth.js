@@ -7,18 +7,29 @@ const signToken = (id) =>
   });
 
 /** Verify a JWT and return its payload (throws on failure). Shared by REST + Socket.io. */
-const verifyToken = (token) => jwt.verify(token, process.env.JWT_SECRET);
+const verifyToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    throw new Error('Invalid or expired token');
+  }
+};
 
 /** Express middleware protecting REST routes. Sets req.user = { id }. */
 const protect = (req, res, next) => {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ message: 'Not authenticated' });
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Not authenticated, token missing' });
+  }
+
   try {
-    req.user = { id: verifyToken(token).id };
+    const decoded = verifyToken(token);
+    req.user = { id: decoded.id };
     next();
-  } catch {
-    res.status(401).json({ message: 'Invalid or expired token' });
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
   }
 };
 
