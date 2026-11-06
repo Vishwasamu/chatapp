@@ -1,0 +1,9 @@
+# Optional: `docker compose up -d` starts a local MongoDB on port 27017
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports: ["27017:27017"]
+    volumes: ["mongo_data:/data/db"]
+volumes:
+  mongo_data:
