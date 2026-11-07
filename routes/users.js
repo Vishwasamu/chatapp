@@ -1,22 +1,28 @@
-const express = require('express');
-const User = require('../models/User');
-const { protect, asyncHandler } = require('../middleware/auth');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
-const router = express.Router();
-router.use(protect);
+const userSchema = new mongoose.Schema({
+  phoneNumber: { type: String, required: true, unique: true, index: true },
+  username:    { type: String, required: true, index: true },
+  email:       { type: String, lowercase: true, trim: true, sparse: true, unique: true, index: true },
+  emailVerified: { type: Boolean, default: false },
+  password:    { type: String, required: true, select: false },
+  avatar:      { type: String, default: '' },
+  isOnline:    { type: Boolean, default: false },
+  lastSeen:    { type: Date, default: Date.now },
+  createdAt:   { type: Date, default: Date.now },
+});
 
-// GET /api/users?q=ali  -> everyone except me (optionally filtered by username)
-router.get('/', asyncHandler(async (req, res) => {
-  const filter = { _id: { $ne: req.user.id } };
-  if (req.query.q) {
-    const safe = String(req.query.q).toLowerCase().replace(/[^a-z0-9_]/g, '');
-    filter.username = { $regex: `^${safe}` };
-  }
-  const users = await User.find(filter)
-    .select('username avatar isOnline lastSeen')
-    .sort('username')
-    .limit(100);
-  res.json({ users });
-}));
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
 
-module.exports = router;
+// Method to compare password
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+module.exports = mongoose.model('User', userSchema);
