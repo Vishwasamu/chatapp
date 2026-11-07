@@ -22,15 +22,19 @@ router.get('/', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const me = req.user.id;
   const { userId, name, memberIds } = req.body;
+  
+  // 👇 මේක දාන්න (Terminal එකේ බලන්න හරියටම එනවද කියලා)
+  console.log('📥 POST /api/chats එකට ආපු දත්ත:', req.body); 
+
   let chat;
   let created = false;
 
   if (userId) {
     // ---- private chat (find or create) ----
     if (!mongoose.isValidObjectId(userId) || userId === me)
-      return res.status(400).json({ message: 'Invalid user' });
+      return res.status(400).json({ message: 'Invalid user ID' });
     if (!(await User.exists({ _id: userId })))
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found in database' });
 
     const privateKey = [me, userId].sort().join('_');
     chat = await Chat.findOne({ privateKey });
@@ -39,7 +43,7 @@ router.post('/', asyncHandler(async (req, res) => {
         chat = await Chat.create({ members: [me, userId], privateKey });
         created = true;
       } catch (err) {
-        if (err.code !== 11000) throw err; // lost a race: someone just created it
+        if (err.code !== 11000) throw err; // lost a race
         chat = await Chat.findOne({ privateKey });
       }
     }
@@ -64,9 +68,7 @@ router.post('/', asyncHandler(async (req, res) => {
     const io = req.app.get('io');
     for (const member of chat.members) {
       const memberId = member.toString();
-      // Put every connected device of every member into the new room...
       io.in(`user:${memberId}`).socketsJoin(`chat:${chat.id}`);
-      // ...and tell everyone except the creator that a new chat exists.
       if (memberId !== me) {
         io.to(`user:${memberId}`).emit('new_chat', await toClientChat(chat.id, memberId));
       }
@@ -76,7 +78,7 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(created ? 201 : 200).json({ chat: await toClientChat(chat.id, me) });
 }));
 
-// GET /api/chats/:id/messages?limit=50&before=<ISO date>
+// GET /api/chats/:id/messages
 router.get('/:id/messages', asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid chat id' });
@@ -96,7 +98,7 @@ router.get('/:id/messages', asyncHandler(async (req, res) => {
     .populate('sender', 'username')
     .lean();
 
-  res.json({ messages: messages.reverse() }); // chronological order
+  res.json({ messages: messages.reverse() });
 }));
 
 module.exports = router;

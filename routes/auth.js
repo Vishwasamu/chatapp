@@ -228,7 +228,8 @@ router.post('/check-contacts', protect, asyncHandler(async (req, res) => {
     phoneNumber: { $in: phoneNumbers },
   }).select('-password');
 
-  res.json(registeredUsers);
+  // ✅ වෙනස් කල තැන: Array එක { users: [...] } විදියට එවන්න
+  res.json({ users: registeredUsers }); 
 }));
 
 module.exports = router;
